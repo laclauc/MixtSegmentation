@@ -136,15 +136,14 @@ simu_courbe=function(n,d,p,K=NULL,L=NULL,sigma=NULL,mu_max=5){
   }
   list(x=x,z=z,pik=pik,TL=TL,mu=mu,K=K,sigma=as.matrix(sigma))
 }
-simu_courbe_equ=function(n,d,p,K=NULL,L=NULL,sigma=NULL,mu_max=5){
+simu_courbe_equ=function(n,d,p,K=NULL,L=NULL,sigma=NULL,mu_max=5,prob_TL=TRUE){
   if (is.null(K)){
     K=rpois(1,2)+2
   }
   if (is.null(L)){
-    TL=lapply(1:K,function(k){
-      c(0,sort(sample(1:(d-1),size = rpois(1,3)+1,replace = FALSE)),d)
-    })
-  }else{
+    L<-rpois(1,3)+1
+  }
+  if (prob_TL){
     TL=lapply(1:K,function(k){
       Temp<-c(0,sort(sample(1:(d-1),size = L[k],replace = FALSE)),d)
       while (any((Temp[2:length(Temp)]-Temp[1:(length(Temp)-1)])<5)){
@@ -152,7 +151,12 @@ simu_courbe_equ=function(n,d,p,K=NULL,L=NULL,sigma=NULL,mu_max=5){
       }
       Temp
     })
+  }else{
+    TL=lapply(1:K,function(k){
+      floor(seq(0,d,length=L[k]+2))
+    })
   }
+
   if (is.null(sigma)){
     sigma=runif(n = K,min = 0.1,max = 2)
   }
@@ -175,3 +179,60 @@ simu_courbe_equ=function(n,d,p,K=NULL,L=NULL,sigma=NULL,mu_max=5){
   }
   list(x=x,z=z,pik=pik,TL=TL,mu=mu,K=K,sigma=as.matrix(sigma))
 }
+
+BIC<-function(x,pik,TL,mu,sigma,pen_np=FALSE){
+  K=length(pik)
+  n=dim(x)[1]
+  d=dim(x)[2]
+  p=dim(x)[3]
+  ############
+  # Loglikelihood
+  ############
+  if (ncol(sigma)==1){
+    log_ik<-sapply(1:n,function(i){
+      sapply(1:K,function(k){
+        log(pik[k])-p*d*log(sigma[k])/2-sum(sapply(1:p,function(r){
+          sum(sapply(1:(length(TL[[k]])-1),function(l){
+            sum((x[i,(TL[[k]][l]+1):(TL[[k]][l+1]),r]-mu[[k]][l,r])^2)
+          }))
+        }))/(2*sigma[k])
+      })
+    })
+    #####
+    # sum_i({log[sum_k exp(log_ik-max_k' log_ik')]}+max_k' log_ik')
+    #####
+    if (class(log_ik)[1]=="numeric"){
+      m_log_ik<-log_ik
+    }else{
+      m_log_ik<-apply(log_ik,MARGIN = 2,max)
+    }
+    logLikelihood<-sum(log(apply(exp(log_ik-matrix(1,nrow=K,ncol=1)%*%m_log_ik),MARGIN = 2,sum))+m_log_ik)-n*d*p/2*log(2*pi)
+  }
+  ##############
+  # Penalty
+  ##############
+  pen<-(K-1)/2*log(n)+                                      ##### pi
+    sum(sapply(1:K,function(k){
+    3*p*(length(TL[[k]])-1)*log(n*d)+                       ### Mu
+        sum(log((TL[[k]][-1]-TL[[k]][-length(TL[[k]])])))-  ### T
+        (length(TL[[k]])-1)*(log(d)-log(n*p)*pen_np)        ### Normalisation T
+  }))+(K*ncol(sigma))/2*log(n*d*p)                          ### sigma
+  ##############
+  # BIC
+  ##############
+  logLikelihood-pen
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,6 +1,6 @@
 ##########################
 # Algorithme EM
-# MAJ 12/02/2020
+# MAJ 05/01/2023
 # vincent.brault@univ-grenoble-alpes.fr
 ###########################
 
@@ -94,6 +94,7 @@ Calcul_Moy<-function(x){
     }
   }
   Moy
+  #### Complexity : pnd^2
 }
 
 EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,Essai_max=100,
@@ -219,45 +220,38 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
         old<-new
       }
     }
-    cat("\n Vraisemblance : -",new,"\n")
     z<-apply(sik,1,which.max)
-    if (ref==Inf){
-      res_part=methods::new(Class="MixSegTime",mu=mu,
-                            sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
-                            pik=pik,method="EM-Dyn",z=z,Q=new)
-      ref=new
-    }
-    if (length(unique(z))<K){
-      if ((ref>new)&(Vide)){
-        if (max(z)>length(unique(z))){
-          K_part<-length(unique(z))
-          cluster_part<-sort(unique(z))
-          for (kbis in 1:K_part){
-            mu[[kbis]]<-mu[[cluster_part[kbis]]]
-            sigma[kbis]<-sigma[cluster_part[kbis]]
-            temp[[kbis]]<-temp[[cluster_part[kbis]]]
-            pik[kbis]<-pik[cluster_part[kbis]]
-            z[z==cluster_part[kbis]]<-kbis
-          }
-          mu<-lapply(1:K_part,function(it){mu[[it]]})
-          sigma<-sigma[1:K_part]
-          temp<-lapply(1:K_part,function(it){temp[[it]]})
-          pik<-pik[1:K_part]
+    cat("\n Q: ",new," with (",paste0(names(table(z)),collapse =","),")=(",paste0(table(z),collapse =","),")\n")
+    if (length(unique(z))<K){ ### Empty cluster
+      if ((ref>new)&(Vide)){ ### If there exist a partition without empty cluster (vide==FALSE), we forgot thise proposition
+        K_part<-length(unique(z))
+        cluster_part<-sort(unique(z))
+        for (kbis in 1:K_part){
+          mu[[kbis]]<-mu[[cluster_part[kbis]]]
+          sigma[kbis]<-sigma[cluster_part[kbis]]
+          temp[[kbis]]<-temp[[cluster_part[kbis]]]
+          pik[kbis]<-pik[cluster_part[kbis]]
+          z[z==cluster_part[kbis]]<-kbis
         }
+        mu<-lapply(1:K_part,function(it){mu[[it]]})
+        sigma<-sigma[1:K_part]
+        temp<-lapply(1:K_part,function(it){temp[[it]]})
+        pik<-pik[1:K_part]
+        pik<-pik/sum(pik)
         res_part=methods::new(Class="MixSegTime",mu=mu,
                          sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
                          pik=pik,method="EM-Dyn",z=z,Q=new)
         ref=new
       }
-    }else{
-      if (Vide){
+    }else{ ### Any empty cluster
+      if (Vide){ ### It is the first case without empty cluster
         res_part<-methods::new(Class="MixSegTime",mu=mu,
                                sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
                                pik=pik,method="EM-Dyn",z=z,Q=new)
         ref=new
       }
-      Vide=FALSE
-      if (ref>new){
+      Vide=FALSE ### We have a solution without empty cluster
+      if (ref>new){ ### If it is not the first proposition
         res_part<-methods::new(Class="MixSegTime",mu=mu,
                                sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
                                pik=pik,method="EM-Dyn",z=z,Q=new)
@@ -265,6 +259,7 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
       }
     }
     Essai=Essai+1
+
   }
 
 
