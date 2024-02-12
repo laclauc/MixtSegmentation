@@ -1,6 +1,6 @@
 ##########################
 # Algorithme EM
-# MAJ 05/01/2023
+# MAJ 20/11/2023
 # vincent.brault@univ-grenoble-alpes.fr
 ###########################
 
@@ -44,22 +44,26 @@ Deltak<-function(x,sk,Moy){
 }
 
 ProgDyn<-function(Delta,L){
-  d<-nrow(Delta)
-  Ip<-matrix(0,L+1,d)
-  ind<-matrix(0,L+1,d)
-  Ip[1,]<-Delta[1,]
-  for (l in 2:(L+1)){
-    ind[l,l:d]<-sapply(l:d,function(q){which.min(Ip[l-1,l:(q-1)]+Delta[(l+1):q,q])})+l-1
-    Ip[l,l:d]<-sapply(l:d,function(q){(Ip[l-1,ind[l,q]]+Delta[ind[l,q]+1,q])})
+  if (L>0){
+    d<-nrow(Delta)
+    Ip<-matrix(0,L+1,d)
+    ind<-matrix(0,L+1,d)
+    Ip[1,]<-Delta[1,]
+    for (l in 2:(L+1)){
+      ind[l,l:d]<-sapply(l:d,function(q){which.min(Ip[l-1,l:(q-1)]+Delta[(l+1):q,q])})+l-1
+      Ip[l,l:d]<-sapply(l:d,function(q){(Ip[l-1,ind[l,q]]+Delta[ind[l,q]+1,q])})
+    }
+    #### Recuperation des resultats
+    # Ruptures
+    TL=numeric(L+1)
+    TL[L+1]=ind[L+1,d]
+    for (l in L:1){
+      TL[l]=ind[l,TL[l+1]]
+    }
+    return(list(TL=c(TL,d),S=Ip[L+1,d]))
+  }else{
+    return(list(TL=c(0,d),S=Delta[1,d]))
   }
-  #### Recuperation des resultats
-  # Ruptures
-  TL=numeric(L+1)
-  TL[L+1]=ind[L+1,d]
-  for (l in L:1){
-    TL[l]=ind[l,TL[l+1]]
-  }
-  list(TL=c(TL,d),S=Ip[L+1,d])
 }
 
 
@@ -71,7 +75,7 @@ estim_mu<-function(Moy,TL,sk){
   })})
 }
 
-Calcul_Moy<-function(x){
+Calcul_Moy<-function(x,verbatim=TRUE){
   # Verification et init
   if (!is.array(x)){
     stop("x must be an array")
@@ -80,12 +84,18 @@ Calcul_Moy<-function(x){
   d=dim(x)[2]
   p=dim(x)[3]
   # Calculs
-  cat("Calcul des valeurs moyennes (Chronophage)\n")
+  if (verbatim){
+    cat("Calcul des valeurs moyennes (Chronophage)\n")
+  }
   Moy<-array(0,c(p,n,d,d))
-  pb<-txtProgressBar(0,n*p,style = 3)
+  if (verbatim){
+    pb<-txtProgressBar(0,n*p,style = 3)
+  }
   for (r in 1:p){
     for (i in 1:n){
-      setTxtProgressBar(pb,i+(r-1)*n)
+      if (verbatim){
+        setTxtProgressBar(pb,i+(r-1)*n)
+      }
       for (t in 1:d){
         for (s in t:d){
           Moy[r,i,t,s]<-mean(x[i,t:s,r])
@@ -97,8 +107,8 @@ Calcul_Moy<-function(x){
   #### Complexity : pnd^2
 }
 
-EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,Essai_max=100,
-             Essai_Min=10){
+EM_Dyn<-function(x,K=2,L=1,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,Essai_max=100,
+                 Essai_Min=10,verbatim=TRUE){
   #############
   # Initialisation
   #############
@@ -112,7 +122,7 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
   if (is.numeric(L)){
     if (length(L)==1){
       L<-rep(L,K)
-    }else if((any(L<=0))|(any(floor(L)!=L))|(length(L)!=K)){
+    }else if((any(L<0))|(any(floor(L)!=L))|(length(L)!=K)){
       stop("L must be an positive integer or a positive vector integer of size K")
     }
   }else{
@@ -138,7 +148,7 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
   p=dim(x)[3]
   # Les valeurs moyennes
   if (is.null(Moy)){
-    Moy<-Calcul_Moy(x)
+    Moy<-Calcul_Moy(x,verbatim)
   }
   ### Au cas ou classes vides
   ref=Inf
@@ -171,23 +181,34 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
     ###########################
     # Debut iterations
     ###########################
-    cat("\n Lancement numero ",Essai," de la boucle : si 100% -> toutes les iterations faites sans sortir\n")
-    pb<-txtProgressBar(0,niter,style = 3)
+    if (verbatim){
+      cat("\n Lancement numero ",Essai," de la boucle : si 100% -> toutes les iterations faites sans sortir\n")
+      pb<-txtProgressBar(0,niter,style = 3)
+    }
     old=sum(sapply(1:K,function(k){temp[[k]]$S}))+sum(colSums(sik)*log(pik+10^(-250)*(pik<=0)))
     for (iter in 1:niter){
-      setTxtProgressBar(pb,iter)
+      if (verbatim){
+        setTxtProgressBar(pb,iter)
+      }
       #########################
       # Step E
       #########################
       lsik<-sapply(1:K,function(k){
         Nb<-diff(temp[[k]]$TL)
         if (sigma[k]>0){
-        -apply((x-array(unlist(sapply(1:p,function(r){
-          sapply(1:length(Nb),function(l){
-            rep(mu[[k]][l,r],Nb[l]*n)})})),
-          c(n,d,p)))^2,1,sum)/(sigma[k])
+          if (length(Nb)>1){
+            -apply((x-array(unlist(sapply(1:p,function(r){
+              sapply(1:length(Nb),function(l){
+                rep(mu[[k]][l,r],Nb[l]*n)})})),
+              c(n,d,p)))^2,1,sum)/(sigma[k])
+          }else{
+            -apply((x-array(unlist(sapply(1:p,function(r){
+              rep(mu[[k]][r],Nb*n)
+            })),
+            c(n,d,p)))^2,1,sum)/(sigma[k])
+          }
         }else{
-         rep( -10^(250),n)
+          rep( -10^(250),n)
         }
       })-matrix(1,nrow=n,1)%*%(log(sigma*(sigma>0)+10^(-250)*(sigma<=0)))### 1/2 et log 2pi constants donc enleves
       # substraction of the max to have at least one positive value after exp
@@ -201,10 +222,10 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
       #########################
       if (mc.cores>1){
         temp<- parallel::mclapply(1:K,function(k){ProgDyn(Deltak(x,sik[,k],Moy),L[k])}, mc.cores=mc.cores)
-        mu<- parallel::mclapply(1:K,function(k){estim_mu(Moy,temp[[k]]$TL,sik[,k])}, mc.cores=mc.cores)
+        mu<- parallel::mclapply(1:K,function(k){estim_mu(Moy,TL=temp[[k]]$TL,sk=sik[,k])}, mc.cores=mc.cores)
       } else {
         temp<-lapply(1:K,function(k){ProgDyn(Deltak(x,sik[,k],Moy),L[k])})
-        mu<-lapply(1:K,function(k){estim_mu(Moy,temp[[k]]$TL,sik[,k])})
+        mu<-lapply(1:K,function(k){estim_mu(Moy,TL=temp[[k]]$TL,sk=sik[,k])})
       }
 
       colS<-colSums(sik)
@@ -221,7 +242,9 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
       }
     }
     z<-apply(sik,1,which.max)
-    cat("\n Q: ",new," with (",paste0(names(table(z)),collapse =","),")=(",paste0(table(z),collapse =","),")\n")
+    if (verbatim){
+      cat("\n Q: ",new," with (",paste0(names(table(z)),collapse =","),")=(",paste0(table(z),collapse =","),")\n")
+    }
     if (length(unique(z))<K){ ### Empty cluster
       if ((ref>new)&(Vide)){ ### If there exist a partition without empty cluster (vide==FALSE), we forgot thise proposition
         K_part<-length(unique(z))
@@ -239,8 +262,8 @@ EM_Dyn<-function(x,K,L,niter=100,epsilon=10^(-5),Moy=NULL,mc.cores=1,Init=NULL,E
         pik<-pik[1:K_part]
         pik<-pik/sum(pik)
         res_part=methods::new(Class="MixSegTime",mu=mu,
-                         sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
-                         pik=pik,method="EM-Dyn",z=z,Q=new)
+                              sigma=as.matrix(sigma),TL=lapply(1:length(temp),function(k){temp[[k]]$TL}),
+                              pik=pik,method="EM-Dyn",z=z,Q=new)
         ref=new
       }
     }else{ ### Any empty cluster
