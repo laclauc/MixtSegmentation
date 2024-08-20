@@ -1,6 +1,6 @@
 #########################
 # analyse
-# MAJ 16/01/2023 vincent.brault@univ-grenoble-alpes.fr
+# MAJ 17/02/2024 vincent.brault@univ-grenoble-alpes.fr
 #########################
 
 rm(list=ls())
@@ -87,7 +87,7 @@ for (n in c(100,1000)){
   for (d in c(50,100)){
     dat<-mu_res[(mu_res$n==n)&(mu_res$d==d),]
     p<-ggplot(dat,aes(x=alpha,y=dist,fill=alpha,col=Cluster))
-    pdf(paste0("Plan_t_fixe_dgp/Im/Mu_n_",n,"_d_",d,".pdf"),width=8,height=7)
+    pdf(paste0("Plan_t_fixe_dgp/Im/Mu_n_",n,"_d_",d,".pdf"),width=7,height=6)
     print(p+geom_boxplot()+
             labs(title=paste0("n=",n," and d=",d))+scale_y_continuous(limits = c(-M,M)))
     dev.off()

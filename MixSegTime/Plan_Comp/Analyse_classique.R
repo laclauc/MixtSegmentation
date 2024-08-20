@@ -1,6 +1,6 @@
 #########################
 # analyse
-# 25/11/2023 vincent.brault@univ-grenoble-alpes.fr
+# 17/02//2023 vincent.brault@univ-grenoble-alpes.fr
 #########################
 
 rm(list=ls())
@@ -130,7 +130,7 @@ TL_res$Model<-rep("MixSeg",nrow(TL_res))
 ## 5 breaks
 temp<-data.frame(TL_res_5)
 names(temp)=c("n","d","alpha","dist")
-temp$Model<-rep("Simple",nrow(temp))
+temp$Model<-rep("SimpleSeg",nrow(temp))
 TL_res<-rbind(TL_res,temp)
 
 M<-max(TL_res$dist)
@@ -138,11 +138,19 @@ for (n in c(100,1000)){
   for (d in c(50,100)){
     dat<-TL_res[(TL_res$n==n)&(TL_res$d==d),]
     dat$alpha<-as.factor(dat$alpha)
-    p<-ggplot(dat,aes(x=alpha,y=dist,fill=Model))
-    pdf(paste0("Plan_Comp/Im/Comp_5_TL_n_",n,"_d_",d,".pdf"),width=9,height=7)
-    print(p+geom_boxplot()+
-            theme()+scale_y_continuous(limits = c(0,M)))
-    dev.off()
+    p<-ggplot(dat,aes(x=alpha,y=dist,fill=Model))+geom_boxplot()+
+      scale_y_continuous(limits = c(0,M))
+    if ((n==1000)&(d==100)){
+      p<-p+theme()
+      pdf(paste0("Plan_Comp/Im/Comp_5_TL_n_",n,"_d_",d,".pdf"),width=7,height=5)
+      print(p)
+      dev.off()
+    }else{
+      p<-p+theme(legend.position = "none")
+      pdf(paste0("Plan_Comp/Im/Comp_5_TL_n_",n,"_d_",d,".pdf"),width=6,height=5)
+      print(p)
+      dev.off()
+    }
   }
 }
 
